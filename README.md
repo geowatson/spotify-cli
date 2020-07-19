@@ -8,3 +8,4 @@ Download latest from releases
 
 1. `./spotify login` - logins you to spotify app
 2. `./spotify random` - play random song! 
+3. `./spotify next` - scrobble to next song if you are bored
