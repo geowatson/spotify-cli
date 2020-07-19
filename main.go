@@ -144,7 +144,11 @@ func nextTrack(file *os.File) string {
 }
 
 func selectDevice(file *os.File) string {
-	devices, err := getDevices(file)
+	_, err := getToken(file)
+	if err != nil {
+		return "You need to log-in."
+	}
+	devices, err := getDevices()
 	if err != nil {
 		log.Fatal(err)
 		return "Something bad happened while getting Devices"
@@ -204,15 +208,10 @@ func setDevice(token string, deviceId string) (s string, err error) {
 	return "Successfully changed device", nil
 }
 
-func getDevices(file *os.File) (devices []Device, err error) {
-	token, err := getToken(file)
-	if err != nil {
-		return nil, err
-	}
-
+func getDevices() (devices []Device, err error) {
 	path := "/me/player/devices"
 	headers := map[string]string{
-		"Authorization": "Bearer " + token,
+		"Authorization": "Bearer " + CurrentToken,
 	}
 
 	response, err := makeRequest("GET", BaseUrl + path, headers, nil)
@@ -226,6 +225,10 @@ func getDevices(file *os.File) (devices []Device, err error) {
 	var resBody Devices
 	if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
 		return nil, jsonErr
+	}
+
+	if len(resBody.Devices) == 0 {
+		return nil, errors.New("no devices")
 	}
 
 	return resBody.Devices, nil
@@ -264,8 +267,38 @@ func play(playType string, playId string) error {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if response.StatusCode == http.StatusNotFound {
+		devices, err := getDevices()
+		if err != nil {
+			return errors.New("cannot get devices")
+		}
+		if err := startPlayOnDevice(devices[0].Id, playType, playId); err != nil {
+			return errors.New("cannot get devices")
+		}
+		return nil
+	}
 	if response.StatusCode != http.StatusNoContent {
-		return errors.New("featured playlists returned " + strconv.Itoa(response.StatusCode))
+		return errors.New("play returned " + strconv.Itoa(response.StatusCode))
+	}
+
+	return nil
+}
+
+func startPlayOnDevice(deviceId string, playType string, playId string) error {
+	path := "/me/player/play?device_id=" + deviceId
+	headers := map[string]string{
+		"Authorization": "Bearer " + CurrentToken,
+	}
+	body := map[string]interface{} {
+		"context_uri": "spotify:" + playType + ":" + playId,
+	}
+
+	response, err := makeRequest("PUT", BaseUrl + path, headers, body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		return errors.New("play returned " + strconv.Itoa(response.StatusCode))
 	}
 	if response.StatusCode == http.StatusUnauthorized {
 		return errors.New("you need to re-login")
