@@ -1,4 +1,6 @@
-# Spotify cli!
+# Spotify CLI
+
+Minimalist Spotify playback from CLI written in Go.
 
 # Installation
 
