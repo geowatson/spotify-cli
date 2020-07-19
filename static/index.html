@@ -12,7 +12,7 @@
         let slice = v.split("=")
         bucket[slice[0]] = slice[1]
     })
-    fetch(`http://localhost:8080?access_token=${bucket['access_token']}`).then(v => v.json()).then(v => {
+    fetch(`http://localhost:7911?access_token=${bucket['access_token']}`).then(v => v.json()).then(v => {
         let doc = document.createElement("div")
         doc.innerHTML = v.message.toString()
         document.getElementById("main").appendChild(doc)
