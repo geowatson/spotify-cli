@@ -6,6 +6,5 @@ Download latest from releases
 
 # Usage
 
-`./spotify login  # logins you to spotify app`
-
-`./spotify next   # play next song`
+1. `./spotify login` - logins you to spotify app
+2. `./spotify random` - play random song! 
