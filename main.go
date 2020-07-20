@@ -102,7 +102,7 @@ func login(file *os.File) string {
 			log.Fatal(err)
 		}
 	}()
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 	openBrowser("https://accounts.spotify.com/en/authorize" +
 		"?client_id=" + ClientToken +
 		"&redirect_uri=http://localhost:" + ServletPort + "/ok" +
