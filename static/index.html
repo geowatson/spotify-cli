@@ -1,29 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+<div>did you know that your browser is most likely using most of your memory right now?</div>
 <script>
-    open("", "_", null, false)
-    let bucket = {}
+    let bucket = {'access_token': ""}
     let data = window.location.hash.substr(1).split("&").forEach(v => {
         let slice = v.split("=")
         bucket[slice[0]] = slice[1]
     })
-    fetch(`http://localhost:7911?access_token=${bucket['access_token']}`).then(v => v.json()).then(v => {
-        let doc = document.createElement("div")
-        doc.innerHTML = v.message.toString()
-        document.getElementById("main").appendChild(doc)
-        setTimeout(() => {
-            fetch("http://localhost:8080/stop")
-            window.close()
-        }, 0)
-    })
+    fetch("http://localhost:7911/token/store?access_token=" + bucket['access_token'])
 </script>
-<div id="main">
-
-</div>
-</body>
-</html>

@@ -3,11 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"io/ioutil"
 	"log"
@@ -22,7 +20,12 @@ import (
 	"time"
 )
 
-type CommandFunc func(f *os.File) string
+type command func(f *os.File) string
+type handlerFunc func(w http.ResponseWriter, r *http.Request)
+type Handler struct {
+	Func handlerFunc
+	Url string
+}
 type Devices struct {
 	Devices []Device
 }
@@ -53,69 +56,117 @@ const ClientToken = ""  // can be retrieved from https://developer.spotify.com/d
 const BaseUrl = "https://api.spotify.com/v1"
 const SecretPattern = "secret-spotify-cli-*.txt"
 
+// I'm very sorry for this; I feel really disappointed about it too but there is no actual way to convert
+// static files to binary while building. We will change this in future, I promise!
+const LoginRedirectPage =
+	"<div>did you know that your browser is most likely using most of your memory right now?</div>" +
+	"<div>By the way, you can close this window.</div>" +
+	"<script>let bucket={access_token:\"\"},data=window.location.hash.substr(1).split(\"&\").forEach(t=>{let e=t.split(\"=\");bucket[e[0]]=e[1]});fetch(\"http://localhost:7911/token/store?access_token=\"+bucket.access_token);</script>"
 
-var WaitForServer = true
 var CurrentToken string
 
-func getCommands() map[string]CommandFunc {
-	return map[string]CommandFunc{
-		"login": login,
+func getCommands() map[string]command {
+	return map[string]command{
+		"login": newLogin,
 		"next":  nextTrack,
 		"device": selectDevice,
 		"random": playRandomSong,
 	}
 }
 
-func login(file *os.File) string {
-	println("Prompting authorization page...")
-	WaitForServer = true
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Static("/ok", "./static")
-	r.GET("/", func(ctx *gin.Context) {
-		token := ctx.Query("access_token")
-		_, err := file.Write([]byte(token))
-		if err != nil {
-			log.Fatal(err)
-		}
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "thanks! you can close this window now.",
-		})
-		if len(token) > 0 {
-			WaitForServer = false
-		}
-	})
+func newLogin(file *os.File) string {
+	var blocked = true
+	var badToken = false
+	timeout := 30 * time.Second
+	port := ServletPort
+	handlers := []Handler{
+		{
+			Url: "/token/store",
+			Func: func (w http.ResponseWriter, r *http.Request) {
+				keys, ok := r.URL.Query()["access_token"]
+				if !ok || len(keys) == 0 {
+					log.Fatal("No access token provided from Spotify... what a shame!")
+				}
+				_, err := file.Write([]byte(keys[0]))
+				if err != nil {
+					log.Fatal("Cannot save token for some reason :(")
+				}
+				blocked = false
+				if len(keys[0]) == 0 {
+					badToken = true
+				}
+				_, _ = fmt.Fprintf(w, "Thanks!")
+			},
+		},
+		{
+			Url: "/health",
+			Func: func(w http.ResponseWriter, r *http.Request) {
+				_, _ = fmt.Fprintf(w, "im alive!")
+			},
+		},
+		{
+			Url: "/ok/",
+			Func: func(w http.ResponseWriter, r *http.Request) {
+				_, _ = fmt.Fprintf(w, LoginRedirectPage)
+			},
+		},
+	}
+	go servlet(port, handlers)
 
-	srv := &http.Server{
-		Addr:    ":" + ServletPort,
-		Handler: r,
+	println("Waiting for server to start...")
+	if err := watcher(timeout, "http://localhost:" + port + "/health"); err != nil {
+		log.Fatal("Server could not be started in " + strconv.Itoa(int(timeout.Seconds())) + " seconds :(")
 	}
 
-	_ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	r.GET("/stop", func(ctx *gin.Context) {
-		_ = srv.Shutdown(_ctx)
-	})
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
-	time.Sleep(3 * time.Second)
-	openBrowser("https://accounts.spotify.com/en/authorize" +
-		"?client_id=" + ClientToken +
+	println("Server started! Opening authentication page in browser...")
+	baseUrl := "https://accounts.spotify.com/en/authorize"
+	query := "?client_id=" + ClientToken +
 		"&redirect_uri=http://localhost:" + ServletPort + "/ok" +
 		"&response_type=token" +
-		"&scope=ugc-image-upload user-read-playback-state user-modify-playback-state user-read-currently-playing streaming app-remote-control")
+		"&scope=ugc-image-upload user-read-playback-state user-modify-playback-state user-read-currently-playing streaming app-remote-control"
+	fullUrl := baseUrl + query
+	time.Sleep(600 * time.Millisecond)
+	openBrowser(fullUrl)
+	println("Alternatively, you can open this link in your browser: " + baseUrl + strings.Replace(query, " ", "%20", -1))
 
-	for t := 0; t < 60; t++ {
-		if WaitForServer == false {
-			return "You are successfully logged in. Lets go play some music!"
-		}
-		time.Sleep(1 * time.Second)
+	if err := waiter(2 * timeout, &blocked); err != nil {
+		return "Timeout of total " + strconv.Itoa(int((2 * timeout).Seconds())) + " seconds reached on authorization."
 	}
-	return "Timeout exceeded on login"
+
+	if badToken {
+		return "Bad token received :("
+	}
+
+	return "You are successfully logged in. Lets go play some music!"
+}
+
+func servlet(port string, handlers []Handler) {
+	for _, h := range handlers {
+		http.HandleFunc(h.Url, h.Func)
+	}
+	_ = http.ListenAndServe(":" + port, nil)
+}
+
+func watcher(t time.Duration, addr string) error {
+	for i := 0; i < int(t.Seconds()); i++ {
+		time.Sleep(1 * time.Second)
+		res, err := http.Get(addr)
+		if err != nil {}  // ignore err
+		if res != nil && res.StatusCode == 200 {
+			return nil
+		}
+	}
+	return errors.New("server did not start")
+}
+
+func waiter(t time.Duration, blocked *bool) error {
+	for i := 0; i < int(t.Seconds()); i++ {
+		time.Sleep(1 * time.Second)
+		if !*blocked {
+			return nil
+		}
+	}
+	return errors.New("time exceeded")
 }
 
 func nextTrack(file *os.File) string {
