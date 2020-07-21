@@ -67,14 +67,14 @@ var CurrentToken string
 
 func getCommands() map[string]command {
 	return map[string]command{
-		"login": newLogin,
-		"next":  nextTrack,
+		"login":  login,
+		"next":   nextTrack,
 		"device": selectDevice,
 		"random": playRandomSong,
 	}
 }
 
-func newLogin(file *os.File) string {
+func login(file *os.File) string {
 	var blocked = true
 	var badToken = false
 	timeout := 30 * time.Second
