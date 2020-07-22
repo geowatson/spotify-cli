@@ -35,7 +35,7 @@ type Device struct {
 	IsActive bool `json:"is_active"`
 }
 
-type FeaturedPlaylistsResponse struct {
+type PlaylistsResponse struct {
 	Message string `json:"message"`
 	Playlists Playlists `json:"playlists"`
 }
@@ -49,6 +49,19 @@ type Playlist struct {
 	Id string `json:"id"`
 	Name string `json:"name"`
 	Description string `json:"description"`
+}
+
+type CategoriesResponse struct {
+	Categories Categories `json:"categories"`
+}
+
+type Categories struct {
+	Items []Category
+}
+
+type Category struct {
+	Id string
+	Name string
 }
 
 const ServletPort = "7911"
@@ -285,6 +298,26 @@ func getDevices() (devices []Device, err error) {
 	return resBody.Devices, nil
 }
 
+//func playRandomSong(file *os.File) string {
+//	rand.Seed(time.Now().UnixNano())
+//
+//	if _, err := getToken(file); err != nil {
+//		return "You need to log-in."
+//	}
+//
+//	p, err := getFeaturedPlaylists()
+//	if err != nil {
+//		return "Cannot get featured playlists, reason: " + err.Error()
+//	}
+//	randPos := rand.Intn(len(p))
+//
+//	if err := play("playlist", p[randPos].Id); err != nil {
+//		return "Cannot play random song :("
+//	}
+//
+//	return "Playing for you now: [Playlist] " + p[randPos].Name + " - " + p[randPos].Description
+//}
+
 func playRandomSong(file *os.File) string {
 	rand.Seed(time.Now().UnixNano())
 
@@ -292,17 +325,23 @@ func playRandomSong(file *os.File) string {
 		return "You need to log-in."
 	}
 
-	p, err := getFeaturedPlaylists()
+	c, err := getCategories()
 	if err != nil {
-		return "Cannot get featured playlists, reason: " + err.Error()
+		log.Fatal("Cannot get categories")
 	}
-	randPos := rand.Intn(len(p))
+	randCategoryPos := rand.Intn(len(c))
 
-	if err := play("playlist", p[randPos].Id); err != nil {
+	p, err := getCategoryPlaylists(c[randCategoryPos].Id)
+	if err != nil {
+		return "Cannot get category playlists, reason: " + err.Error()
+	}
+	randPlaylistPos := rand.Intn(len(p))
+
+	if err := play("playlist", p[randPlaylistPos].Id); err != nil {
 		return "Cannot play random song :("
 	}
 
-	return "Playing for you now: [Playlist] " + p[randPos].Name + " - " + p[randPos].Description
+	return "Playing for you now: [" + c[randCategoryPos].Name + "] " + p[randPlaylistPos].Name + " - " + p[randPlaylistPos].Description
 }
 
 func play(playType string, playId string) error {
@@ -333,6 +372,55 @@ func play(playType string, playId string) error {
 	}
 
 	return nil
+}
+
+func getCategoryPlaylists(categoryId string) (playlists []Playlist, err error) {
+	path := "/browse/categories/" + categoryId + "/playlists?limit=50"
+	headers := map[string]string{
+		"Authorization": "Bearer " + CurrentToken,
+	}
+
+	response, err := makeRequest("GET", BaseUrl + path, headers, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New("featured playlists returned " + strconv.Itoa(response.StatusCode))
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return nil, errors.New("you need to re-login")
+	}
+
+	tempBody, _ := ioutil.ReadAll(response.Body)
+	var resBody PlaylistsResponse
+	if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
+		return nil, errors.New("cannot decode playlists")
+	}
+
+	return resBody.Playlists.Items, nil
+}
+
+func getCategories() (categories []Category, err error) {
+	path := "/browse/categories?limit=50"
+	headers := map[string]string{
+		"Authorization": "Bearer " + CurrentToken,
+	}
+
+	response, err := makeRequest("GET", BaseUrl + path, headers, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		log.Fatal("Cannot get categories, got code " + strconv.Itoa(response.StatusCode))
+	}
+
+	tempBody, _ := ioutil.ReadAll(response.Body)
+	var resBody CategoriesResponse
+	if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
+		log.Fatal("Cannot decode categories")
+	}
+
+	return resBody.Categories.Items, nil
 }
 
 func startPlayOnDevice(deviceId string, playType string, playId string) error {
@@ -376,7 +464,7 @@ func getFeaturedPlaylists() (playlists []Playlist, err error) {
 	}
 
 	tempBody, _ := ioutil.ReadAll(response.Body)
-	var resBody FeaturedPlaylistsResponse
+	var resBody PlaylistsResponse
 	if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
 		return nil, errors.New("cannot decode playlists")
 	}
