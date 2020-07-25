@@ -75,15 +75,19 @@ const SecretPattern = "secret-spotify-cli-*.txt"
 // I'm very sorry for this; I feel really disappointed about it too but there is no actual way to convert
 // static files to binary while building. We will change this in future, I promise!
 const LoginRedirectPage = `
-	<div>Success! You can close this window and use CLI.</div>
-	<script>
-		let bucket = {'access_token': ""}
-		let data = window.location.hash.substr(1).split("&").forEach(v => {
-			let slice = v.split("=")
-			bucket[slice[0]] = slice[1]
-		})
-		fetch("http://localhost:` + ServletPort + `/token/store?access_token=" + bucket['access_token'])
-	</script> 
+    <div id="message"></div>
+    <script>
+        let doc = document.getElementById("message")
+        let data = window.location.hash.substr(1).split("&").forEach(v => {
+            let slice = v.split("=")
+            if (slice[0] === "access_token") {
+                fetch("http://localhost:` + ServletPort + `/token/store?access_token=" + slice[1]).then(r => {
+                    if (r.status === 200) doc.innerHTML = "Success! You can close this window and use CLI."
+                    else doc.innerHTML = "Cannot connect to the local server. Rerun login command."
+                })
+            } else doc.innerHTML = "No access token were provided from Spotify."
+        })
+    </script> 
 `
 
 var CurrentToken string
