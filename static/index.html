@@ -1,9 +1,0 @@
-<div>did you know that your browser is most likely using most of your memory right now?</div>
-<script>
-    let bucket = {'access_token': ""}
-    let data = window.location.hash.substr(1).split("&").forEach(v => {
-        let slice = v.split("=")
-        bucket[slice[0]] = slice[1]
-    })
-    fetch("http://localhost:7911/token/store?access_token=" + bucket['access_token'])
-</script>
