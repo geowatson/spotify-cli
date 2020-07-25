@@ -392,6 +392,58 @@ func play(playType string, playId string) error {
     return nil
 }
 
+func pause() error {
+    path := "/me/player/pause"
+    headers := map[string]string{
+        "Authorization": "Bearer " + CurrentToken,
+    }
+
+    response, err := makeRequest("PUT", BaseUrl+path, headers, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if response.StatusCode != http.StatusNoContent {
+        return errors.New("cannot pause")
+    }
+
+    return nil
+}
+
+// togglePlay is a boilerplate for play() func
+// needs to be replaced with more generalized func
+func togglePlay(file *os.File) string {
+    if _, err := getToken(file); err != nil {
+        return "You need to log-in."
+    }
+
+    path := "/me/player/play"
+    headers := map[string]string{
+        "Authorization": "Bearer " + CurrentToken,
+    }
+    if errPause := pause(); errPause == nil {
+        return "Paused playback"
+    }
+
+    response, err := makeRequest("PUT", BaseUrl+path, headers, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if response.StatusCode == http.StatusNotFound {
+        devices, err := getDevices()
+        if err != nil {
+            return "Cannot get devices"
+        }
+        if len(devices) == 0 {
+            return "No devices are running. Start Spotify on one of them."
+        }
+    }
+    if response.StatusCode != http.StatusNoContent {
+        return "Play returned " + strconv.Itoa(response.StatusCode)
+    }
+
+    return "Resumed playback"
+}
+
 func getCategoryPlaylists(categoryId string) (playlists []Playlist, err error) {
     path := "/browse/categories/" + categoryId + "/playlists?limit=50"
     headers := map[string]string{
@@ -525,21 +577,31 @@ func findTempFileLocation() (f string, err error) {
     return matches[0], nil
 }
 
+func openTempFile() *os.File {
+    var file *os.File
+    var fileErr error
+
+    match, err := findTempFileLocation()
+    if err != nil {
+        file, fileErr = ioutil.TempFile(os.TempDir(), SecretPattern)
+    } else {
+        file, fileErr = os.OpenFile(match, os.O_RDWR, os.ModeAppend)
+    }
+    if fileErr != nil {
+        log.Fatal(err)
+    }
+    return file
+}
+
 func processCommand(args []string) {
+    if len(args) == 0 {
+        file := openTempFile()
+        println(togglePlay(file))
+        return
+    }
     for k, v := range getCommands() {
         if args[0] == k {
-            var file *os.File
-            var fileErr error
-
-            match, err := findTempFileLocation()
-            if err != nil {
-                file, fileErr = ioutil.TempFile(os.TempDir(), SecretPattern)
-            } else {
-                file, fileErr = os.OpenFile(match, os.O_RDWR, os.ModeAppend)
-            }
-            if fileErr != nil {
-                log.Fatal(err)
-            }
+            file := openTempFile()
             responseText := v(file)
             if strings.HasSuffix(responseText, "\n") {
                 print(responseText)
@@ -585,10 +647,6 @@ func makeRequest(method string, url string, headers map[string]string, body map[
 }
 
 func main() {
-    if len(os.Args) < 2 {
-        println("Enter command. pleas")
-        return
-    }
     args := os.Args[1:]
     processCommand(args)
 }
