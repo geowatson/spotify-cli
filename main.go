@@ -315,6 +315,7 @@ func getDevices() (devices []Device, err error) {
     return resBody.Devices, nil
 }
 
+// we dont need this right now
 //func playRandomSong(file *os.File) string {
 //	rand.Seed(time.Now().UnixNano())
 //
@@ -463,31 +464,32 @@ func startPlayOnDevice(deviceId string, playType string, playId string) error {
     return nil
 }
 
-func getFeaturedPlaylists() (playlists []Playlist, err error) {
-    path := "/browse/featured-playlists?limit=50"
-    headers := map[string]string{
-        "Authorization": "Bearer " + CurrentToken,
-    }
-
-    response, err := makeRequest("GET", BaseUrl+path, headers, nil)
-    if err != nil {
-        log.Fatal(err)
-    }
-    if response.StatusCode != http.StatusOK {
-        return nil, errors.New("featured playlists returned " + strconv.Itoa(response.StatusCode))
-    }
-    if response.StatusCode == http.StatusUnauthorized {
-        return nil, errors.New("you need to re-login")
-    }
-
-    tempBody, _ := ioutil.ReadAll(response.Body)
-    var resBody PlaylistsResponse
-    if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
-        return nil, errors.New("cannot decode playlists")
-    }
-
-    return resBody.Playlists.Items, nil
-}
+// we dont need this right now
+//func getFeaturedPlaylists() (playlists []Playlist, err error) {
+//    path := "/browse/featured-playlists?limit=50"
+//    headers := map[string]string{
+//        "Authorization": "Bearer " + CurrentToken,
+//    }
+//
+//    response, err := makeRequest("GET", BaseUrl+path, headers, nil)
+//    if err != nil {
+//        log.Fatal(err)
+//    }
+//    if response.StatusCode != http.StatusOK {
+//        return nil, errors.New("featured playlists returned " + strconv.Itoa(response.StatusCode))
+//    }
+//    if response.StatusCode == http.StatusUnauthorized {
+//        return nil, errors.New("you need to re-login")
+//    }
+//
+//    tempBody, _ := ioutil.ReadAll(response.Body)
+//    var resBody PlaylistsResponse
+//    if jsonErr := json.Unmarshal(tempBody, &resBody); jsonErr != nil {
+//        return nil, errors.New("cannot decode playlists")
+//    }
+//
+//    return resBody.Playlists.Items, nil
+//}
 
 /*
  * SYSTEM FUNCTIONS
