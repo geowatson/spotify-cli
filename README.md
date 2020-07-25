@@ -16,10 +16,11 @@ In this README we run binary from CWD, but you can install it to your
 
 # Usage
 
-1. `./spotify login` - logins you to spotify app
-2. `./spotify random` - play random song!
-3. `./spotify next` - scrobble to next song (in current random context you are in) if you are bored
-4. `./spotify device` - change playback device if you have more than 1
+* `./spotify login` - logins you to spotify app
+* `./spotify` - toggles play/pause for current playback
+* `./spotify random` - play random song!
+* `./spotify next` - scrobble to next song (in current random context you are in) if you are bored
+* `./spotify device` - change playback device if you have more than 1
 
 # Development
 
